@@ -1,32 +1,53 @@
 import socket
-import sys
+import threading # as we have lots of users on smae instance making multiple processes, we need to use threads to handle multiple clients at the same time
 
-def start_server(port):
-    # Create a UDP socket (SOCK_DGRAM)
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    
-    try:
-        server_socket.bind(('0.0.0.0', port)) # we use 0.0.0.0 as this is a wildcard address that allows the server to listen on all available network interfaces. This is useful for servers that need to accept connections from any IP address, rather than being limited to a specific one.
-        print(f"[*] Server listening on port {port}...")
+host = '127.0.0.1'
+port = 55555
 
-        while True:
-            # Receive message and client address
-            data, addr = server_socket.recvfrom(1024)
-            message = data.decode()
-            print(f"[+] Data recv: {message}")
+#using ipv4 and tcp server we specify AF_INET and SOCK_STREAM
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.bind((host, port))
+server.listen()
 
-            # Send acknowledgment back to the specific client address
-            response = "Welcome to the UDP Server."
-            server_socket.sendto(response.encode(), addr)
-            print(f"[+] Data send: {response}")
+# Lists For Clients and Their Nicknames
+clients = []
+nicknames = []
 
-    except Exception as e:
-        print(f"[!] Error: {e}")
-    finally:
-        server_socket.close()
+def broadcast(message):
+    for client in clients:
+        client.send(message)
 
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python server.py <port>")
-    else:
-        start_server(int(sys.argv[1]))
+def handle(client):
+    while True:
+        try:
+            message = client.recv(1024) # message for client in 1024 but buffer, we are waiting for it to send us something
+            broadcast(message)
+        except: 
+            index = clients.index(client)
+            clients.remove(client)
+            client.close()
+            nickname = nicknames[index]
+            print(f'{nickname} disconnected.')
+            broadcast(f'{nickname} left the chat!'.encode('ascii'))
+            nicknames.remove(nickname)
+            break
+            raise
+
+def receive():
+    print(f"Server is listening on {host}:{port}...")
+    while True:
+        client, address = server.accept()
+        print(f"connected with {str(address)}")
+
+        client.send('NICK'.encode('ascii'))
+        nickname = client.recv(1024).decode('ascii')
+        nicknames.append(nickname)
+        clients.append(client)
+        print(f"Nickname is {nickname}")
+        broadcast(f"{nickname} joined the chat!".encode('ascii'))
+        client.send('connected to server!'.encode('ascii'))
+
+        thread = threading.Thread(target=handle, args=(client,)) # client we got from server.accept() is passed to handle function as argument
+        thread.start()
+
+receive()

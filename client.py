@@ -1,30 +1,36 @@
 import socket
-import sys
+import threading
 
-def start_client(port):
-    server_ip = "127.0.0.1" # formal ip for local host
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    
-    try:
-        # Message to send
-        message = "Hello, World!"
-        
-        # Send data
-        client_socket.sendto(message.encode(), (server_ip, port))
-        print(f"[+] Data send: {message}")
+nickname = input("WHo are you? _")
 
-        # Receive response
-        data, server = client_socket.recvfrom(1024)
-        print(f"[+] Data recv: {data.decode()}")
-        print(f"[*] Server address: {server}")
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client.connect(('127.0.0.1', 55555)) #server is on 55555 too
 
-    except Exception as e:
-        print(f"[!] Error: {e}")
-    finally:
-        client_socket.close()
+def receive():
+    """Listens for messages from the server."""
+    while True:
+        try:
+            # Receive Message From Server
+            # If 'NICK' Send Nickname
+            message = client.recv(1024).decode('ascii')
+            if message == 'NICK':
+                client.send(nickname.encode('ascii'))
+            else:
+                print(message)
+        except Exception:
+            # Close Connection When Error
+            print("error")
+            client.close()
+            break
 
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python client.py <port>")
-    else:
-        start_client(int(sys.argv[1]))
+def write():
+    """mocking the client message sending architecture iwth this template function."""
+    while True:
+        message = f'{nickname}: {input("")}'
+        client.send(message.encode('ascii'))
+
+receive_thread = threading.Thread(target=receive)
+receive_thread.start()
+
+write_thread = threading.Thread(target=write)
+write_thread.start()
